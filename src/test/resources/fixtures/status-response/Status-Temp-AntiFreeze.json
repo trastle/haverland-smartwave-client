@@ -1,0 +1,16 @@
+{
+  "sync_status": "ok",
+  "on": true,
+  "mode": "manual",
+  "selected_temp": "ice",
+  "units": "C",
+  "comfort_temp": "20",
+  "eco_offset": "4",
+  "mtemp": "19",
+  "active": false,
+  "presence": false,
+  "locked": false,
+  "unit_model": 1,
+  "unit_fw": 41,
+  "uart_error": false
+}

@@ -1,0 +1,11 @@
+{
+  "devs": [
+    {
+      "dev_id": "d1234ab01234567890",
+      "name": "SmartWave SmartBox Name",
+      "product_id": "0205",
+      "fw_version": "1.13",
+      "serial_id": "0"
+    }
+  ]
+}

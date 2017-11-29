@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {
+      "type": "htr",
+      "addr": 2,
+      "installed": true,
+      "name": "Room 1",
+      "lost": false
+    }
+  ]
+}
