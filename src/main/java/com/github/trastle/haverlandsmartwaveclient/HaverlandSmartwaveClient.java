@@ -1,86 +1,66 @@
 package com.github.trastle.haverlandsmartwaveclient;
 
-import com.github.trastle.haverlandsmartwaveclient.model.*;
+import com.github.trastle.haverlandsmartwaveclient.filters.AuthHeadersRequestFilter;
+import com.github.trastle.haverlandsmartwaveclient.model.AuthResponse;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.jboss.resteasy.client.jaxrs.ResteasyClient;
+import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
+import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
+import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient4Engine;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.UriBuilder;
 
 public class HaverlandSmartwaveClient {
+
+    private static final String HAVERLAND_SMARTWAVE_API_HOST = "https://api-haverland.helki.com";
 
     // This is a constant used by the API. Not a secret. This is NOT a user authentication token.
     private static final String HANDSHAKE_AUTH_HEADER = "Basic NTU3OTM4OWJlMzc3ZWQyOTBiMGQ1NTNlOlVMREI2NjRz";
     private static final String HANDSHAKE_CONTENT_TYPE_HEADER = "application/x-www-form-urlencoded";
-    private static final String HAVERLAND_SMARTWAVE_API_HOST = "https://api-haverland.helki.com";
 
-    private final String userName;
-    private final String password;
+    private static final int MAX_CONNECTIONS = 20;
+    private static final int MAX_CONNECTIONS_PER_ROUTE = 5;
 
-    private AuthResponse authResponse;
+    private final ResteasyWebTarget authTarget;
 
-    public HaverlandSmartwaveClient(String userName, String password) {
-        this.userName = userName;
-        this.password = password;
+    public HaverlandSmartwaveClient() {
+        ResteasyClient authClient = getThreadsafeResteasyClient(1, 1);
+        authTarget = authClient.target(UriBuilder.fromPath(HAVERLAND_SMARTWAVE_API_HOST));
     }
 
-    public AuthResponse authenticate() {
-
-        Client client = ClientBuilder.newClient();
-
+    public synchronized AuthResponse authenticate(String username, String password) {
         MultivaluedMap<String, String> formData = new MultivaluedHashMap<String, String>();
-        formData.add("username", this.userName);
-        formData.add("password", this.password);
+        formData.add("username", username);
+        formData.add("password", password);
         formData.add("grant_type", "password");
 
-        AuthResponse response = client.target(HAVERLAND_SMARTWAVE_API_HOST + "/client/token")
+        AuthResponse authResponse = authTarget.path("/client/token")
                 .request()
                 .header("content-type", HANDSHAKE_CONTENT_TYPE_HEADER)
                 .header("authorization", HANDSHAKE_AUTH_HEADER)
                 .post(Entity.form(formData), AuthResponse.class);
 
-        this.authResponse = response;
-        return response;
+        return authResponse;
     }
 
-    public DevicesResponse getDevs() {
-
-        Client client = ClientBuilder.newClient();
-        DevicesResponse response = client.target(HAVERLAND_SMARTWAVE_API_HOST + "/api/v2/devs/")
-                .request()
-                .header("authorization", "Bearer " + this.authResponse.getAccessToken())
-                .get(DevicesResponse.class);
-
-        return response;
+    public HaverlandSmartwaveDeviceClient getServiceProxy(AuthResponse response) {
+        ResteasyClient client = getThreadsafeResteasyClient(MAX_CONNECTIONS, MAX_CONNECTIONS_PER_ROUTE);
+        ResteasyWebTarget target = client.target(UriBuilder.fromPath(HAVERLAND_SMARTWAVE_API_HOST));
+        target.register(new AuthHeadersRequestFilter(response));
+        return target.proxy(HaverlandSmartwaveDeviceClient.class);
     }
 
-    public NodesResponse getNodes(String deviceId) {
-
-        Client client = ClientBuilder.newClient();
-        NodesResponse response = client.target(HAVERLAND_SMARTWAVE_API_HOST + "/api/v2/devs/")
-                .path(deviceId)
-                .path("/mgr/nodes")
-                .request()
-                .header("authorization", "Bearer " + this.authResponse.getAccessToken())
-                .get(NodesResponse.class);
-
-        return response;
+    private ResteasyClient getThreadsafeResteasyClient(int maxConnections, int maxConnectionsPerRoute) {
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        CloseableHttpClient httpClient = HttpClients.custom().setConnectionManager(cm).build();
+        cm.setMaxTotal(maxConnections);
+        cm.setDefaultMaxPerRoute(maxConnectionsPerRoute);
+        ApacheHttpClient4Engine engine = new ApacheHttpClient4Engine(httpClient);
+        return new ResteasyClientBuilder().httpEngine(engine).build();
     }
-
-    public HeaterStatus getHeaterStatus(String deviceId, int address) {
-
-        Client client = ClientBuilder.newClient();
-        HeaterStatus response = client.target(HAVERLAND_SMARTWAVE_API_HOST + "/api/v2/devs/")
-                .path(deviceId)
-                .path("/htr/")
-                .path("" + address)
-                .path("/status")
-                .request()
-                .header("authorization", "Bearer " + this.authResponse.getAccessToken())
-                .get(HeaterStatus.class);
-
-        return response;
-    }
-
 }
